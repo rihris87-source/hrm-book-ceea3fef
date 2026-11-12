@@ -278,9 +278,28 @@ button{font:inherit;color:inherit;cursor:pointer}
 .dock-t{font-family:var(--cond); font-weight:700; font-size:14px; letter-spacing:.11em; text-transform:uppercase}
 .dock-n{font-family:var(--mono); font-size:12px; color:#D3E6FA}
 .dock.open .dock-n{color:var(--qc-accent)}
-.dock-hint{font-family:var(--cond); font-size:11px; letter-spacing:.06em; color:#D3E6FA; margin-left:4px}
-.dock.open .dock-hint{display:none}
-.dock-total{margin-left:auto; font-family:var(--mono); font-weight:600; font-size:19px}
+.dock-l{flex:1 1 0; display:flex; align-items:center; gap:14px; min-width:0}
+.dock-r{flex:1 1 0; display:flex; justify-content:flex-end; padding-right:38px; min-width:0}
+.dock-hint{
+  flex:none; display:inline-flex; align-items:center; gap:7px; padding:7px 16px; border-radius:999px;
+  background:#fff; color:#0F4C86; font-family:var(--cond); font-weight:800; font-size:14px; letter-spacing:.09em; text-transform:uppercase;
+  box-shadow:0 2px 6px rgba(0,0,0,.28); white-space:nowrap}
+.dock-hint .hint-c{display:none}
+.dock-hint .hint-arrow{transition:transform .22s; animation:hintbob 1.6s ease-in-out infinite}
+@keyframes hintbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.dock.open .dock-hint{background:var(--blue); color:#fff; box-shadow:0 0 0 2px rgba(255,255,255,.35)}
+.dock.open .dock-hint .hint-o{display:none}
+.dock.open .dock-hint .hint-c{display:inline}
+.dock.open .dock-hint .hint-arrow{transform:rotate(180deg); animation:none}
+@media (max-width:560px){
+  .dock-bar{padding:0 12px; gap:8px}
+  .dock-hint{padding:7px 11px; font-size:12.5px}
+  .dock-t{display:none}
+  .dock-r{padding-right:46px}
+  .dock-total{font-size:16px}
+}
+@media (prefers-reduced-motion:reduce){.dock-hint .hint-arrow{animation:none}}
+.dock-total{font-family:var(--mono); font-weight:600; font-size:19px}
 .dock-caret{transition:transform .22s; color:#D3E6FA}
 .dock.open .dock-caret{transform:rotate(180deg); color:var(--qc-accent)}
 .dock-dm{
@@ -556,11 +575,12 @@ button{font:inherit;color:inherit;cursor:pointer}
 
 <div class="dock" id="dock">
   <button class="dock-bar" id="dockbar" aria-expanded="false">
-    <span class="dock-t">Quote</span>
-    <span class="dock-n" id="dockn">empty</span>
-    <span class="dock-hint">&mdash; tap to open</span>
-    <span class="dock-total" id="docktotal">$0</span>
-    <svg class="dock-caret" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 15l6-6 6 6"/></svg>
+    <span class="dock-l"><span class="dock-t">Quote</span><span class="dock-n" id="dockn">empty</span></span>
+    <span class="dock-hint" aria-hidden="true">
+      <svg class="hint-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
+      <span class="hint-o">Tap to open</span><span class="hint-c">Tap to minimize</span>
+    </span>
+    <span class="dock-r"><span class="dock-total" id="docktotal">$0</span></span>
   </button>
   <button class="dock-dm" id="dockdm" aria-pressed="false" title="Switch quote to light background"></button>
   <div class="dock-body" id="dockbody">
