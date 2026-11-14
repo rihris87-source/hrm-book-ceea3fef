@@ -279,7 +279,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .dock-n{font-family:var(--mono); font-size:12px; color:#D3E6FA}
 .dock.open .dock-n{color:var(--qc-accent)}
 .dock-l{flex:1 1 0; display:flex; align-items:center; gap:14px; min-width:0}
-.dock-r{flex:1 1 0; display:flex; justify-content:flex-end; padding-right:38px; min-width:0}
+.dock-r{flex:1 1 0; display:flex; justify-content:flex-end; min-width:0}
 .dock-hint{
   flex:none; display:inline-flex; align-items:center; gap:7px; padding:7px 16px; border-radius:999px;
   background:#fff; color:#0F4C86; font-family:var(--cond); font-weight:800; font-size:14px; letter-spacing:.09em; text-transform:uppercase;
@@ -295,7 +295,6 @@ button{font:inherit;color:inherit;cursor:pointer}
   .dock-bar{padding:0 12px; gap:8px}
   .dock-hint{padding:7px 11px; font-size:12.5px}
   .dock-t{display:none}
-  .dock-r{padding-right:46px}
   .dock-total{font-size:16px}
 }
 @media (prefers-reduced-motion:reduce){.dock-hint .hint-arrow{animation:none}}
@@ -573,7 +572,7 @@ button{font:inherit;color:inherit;cursor:pointer}
   </main>
 </div>
 
-<div class="dock" id="dock">
+<div class="dock light" id="dock">
   <button class="dock-bar" id="dockbar" aria-expanded="false">
     <span class="dock-l"><span class="dock-t">Quote</span><span class="dock-n" id="dockn">empty</span></span>
     <span class="dock-hint" aria-hidden="true">
@@ -582,7 +581,6 @@ button{font:inherit;color:inherit;cursor:pointer}
     </span>
     <span class="dock-r"><span class="dock-total" id="docktotal">$0</span></span>
   </button>
-  <button class="dock-dm" id="dockdm" aria-pressed="false" title="Switch quote to light background"></button>
   <div class="dock-body" id="dockbody">
     <div class="custform">
       <div class="custform-h">Quote for</div>
@@ -637,7 +635,8 @@ const state = {
   markup: {on:true, pct:20},
   cust: {name:'', contact:'', home:'', basePrice:'', by:''},
   onsite: [],
-  improve: {foundation:'', electric:'', septic:'', water:'', decks:'', sidewalks:'', awnings:'', permits:''},
+  incentives: [],   /* credits to the customer: entered as positive dollars, subtracted from the total */
+  improve: {foundation:'', excavation:'', electric:'', septic:'', water:'', decks:'', sidewalks:'', awnings:'', permits:''},
   other: [],
   taxAmt: '',
   taxPct: '',
@@ -957,7 +956,8 @@ function addToQuote(key){
 }
 
 const IMP_FIELDS = [
-  ['foundation', 'Foundation', 'excavation, backfill & grading'],
+  ['foundation', 'Foundation', ''],
+  ['excavation', 'Excavation & Backfill', ''],
   ['electric', 'Electric', 'service & connections'],
   ['septic', 'Septic / Sewer', 'system or connection'],
   ['water', 'Well or Water Connection', ''],
@@ -976,6 +976,7 @@ function improveFixedTotal(){ return IMP_FIELDS.reduce((a, [k]) => a + (state.im
 function improveOtherTotal(){ return state.other.reduce((a, i) => a + (i.tbd ? 0 : (parseFloat(i.amount) || 0)), 0); }
 function tbdBox(attr, on){ return '<label class="tbd' + (on ? ' on' : '') + '" title="Amount to be determined \u2014 prints as TBD and counts as $0"><input type="checkbox" ' + attr + (on ? ' checked' : '') + '><span>TBD</span></label>'; }
 function improvementsSubtotal(){ return improveFixedTotal() + improveOtherTotal(); }
+function incentivesTotal(){ return state.incentives.reduce((a, i) => a + (parseFloat(i.amount) || 0), 0); }
 function taxableSubtotal(){ return homeSubtotal() + onsiteTotal() + improvementsSubtotal(); }
 function salesTax(){
   if (state.taxMode === 'pct'){
@@ -986,13 +987,13 @@ function salesTax(){
   const v = parseFloat(state.taxAmt);
   return isNaN(v) ? 0 : v;
 }
-function grandTotal(){ return taxableSubtotal() + salesTax(); }
+function grandTotal(){ return taxableSubtotal() + salesTax() - incentivesTotal(); }
 
 /* Every line in the quote needs an ID that is unique across ALL lists. The counter
    restarts at 0 each time the page opens, so when a saved quote is reopened we must
    never hand out an ID that a saved line already has. */
 function idTaken(id){
-  return state.quote.some(x => x.id === id) || state.onsite.some(x => x.id === id) || state.other.some(x => x.id === id);
+  return state.quote.some(x => x.id === id) || state.onsite.some(x => x.id === id) || state.other.some(x => x.id === id) || state.incentives.some(x => x.id === id);
 }
 function newId(prefix){
   let id;
@@ -1003,13 +1004,13 @@ function newId(prefix){
    any duplicates already baked into files saved before this fix. */
 function normalizeIds(){
   let max = 0;
-  [state.quote, state.onsite, state.other].forEach(arr => arr.forEach(x => {
-    const m = /^(?:cu|os|ot)(\d+)$/.exec(x.id || '');
+  [state.quote, state.onsite, state.other, state.incentives].forEach(arr => arr.forEach(x => {
+    const m = /^(?:cu|os|ot|in)(\d+)$/.exec(x.id || '');
     if (m) max = Math.max(max, parseInt(m[1], 10));
   }));
   state._seq = Math.max(state._seq, max);
   const seen = new Set();
-  [[state.quote, 'cu'], [state.onsite, 'os'], [state.other, 'ot']].forEach(([arr, pre]) => arr.forEach(x => {
+  [[state.quote, 'cu'], [state.onsite, 'os'], [state.other, 'ot'], [state.incentives, 'in']].forEach(([arr, pre]) => arr.forEach(x => {
     if (!x.id || seen.has(x.id)) x.id = newId(x.code && x.code !== 'CUSTOM' ? 'bk' : pre);
     seen.add(x.id);
   }));
@@ -1024,7 +1025,7 @@ function itemRow(i, kind){
 }
 
 function renderQuote(){
-  const nTotal = state.quote.length + state.onsite.length + state.other.length;
+  const nTotal = state.quote.length + state.onsite.length + state.other.length + state.incentives.length;
   document.getElementById('dockn').textContent = nTotal ? nTotal + (nTotal === 1 ? ' line' : ' lines') : 'empty';
   document.getElementById('docktotal').textContent = money(grandTotal());
 
@@ -1086,14 +1087,21 @@ function renderQuote(){
          '<input class="impinput" type="number" step="1" placeholder="$0" data-imp="' + k + '" value="' + esc(state.improve[k] || '') + '"' + (state.improveTbd[k] ? ' disabled' : '') + '></div>';
   });
   h += '<div class="qsect-h" style="margin-top:12px">Other Items</div>';
-  h += '<div class="miniadd"><input type="text" id="otdesc" placeholder="Description \u2014 e.g. Winter incentive"><input type="number" id="otamt" placeholder="$" step="1"><button class="qbtn" data-add-other>Add</button></div>';
+  h += '<div class="miniadd"><input type="text" id="otdesc" placeholder="Description \u2014 e.g. Landscaping"><input type="number" id="otamt" placeholder="$" step="1"><button class="qbtn" data-add-other>Add</button></div>';
   if (state.other.length) state.other.forEach(i => { h += itemRow(i, 'other'); });
   h += '<div class="subtot"><span>Improvements subtotal</span><b>' + money(improvementsSubtotal()) + '</b></div></div>';
+
+  /* ---- Incentives ---- */
+  h += '<div class="qsect"><div class="qsect-h">Incentives <span class="qsect-sub">credits to the customer \u2014 enter the amount as a positive number, it is subtracted</span></div>';
+  h += '<div class="miniadd"><input type="text" id="indesc" placeholder="Description \u2014 e.g. Winter incentive"><input type="number" id="inamt" placeholder="$" step="1"><button class="qbtn" data-add-incentive>Add</button></div>';
+  if (state.incentives.length) state.incentives.forEach(i => { h += itemRow(i, 'incentive'); });
+  else h += '<div class="qempty" style="padding:4px 0">None added.</div>';
+  h += '<div class="subtot"><span>Incentives total</span><b>' + (incentivesTotal() ? money(-incentivesTotal()) : '$0') + '</b></div></div>';
 
   /* ---- Sales tax + grand total ---- */
   const pctMode = state.taxMode === 'pct';
   h += '<div class="qsect"><div class="qsect-h">Sales Tax <span class="qsect-sub">' +
-       (pctMode ? 'rate is applied to home + add-ons + improvements' : 'type the tax amount in dollars') + '</span></div>';
+       (pctMode ? 'rate is applied to home + add-ons + improvements (before incentives)' : 'type the tax amount in dollars') + '</span></div>';
   h += '<div class="improw"><div class="improw-l"><div class="seg" role="group" aria-label="How to enter sales tax">' +
        '<button data-taxmode="pct" aria-pressed="' + pctMode + '">% Rate</button>' +
        '<button data-taxmode="amt" aria-pressed="' + !pctMode + '">$ Amount</button></div></div>' +
@@ -1112,6 +1120,7 @@ function renderQuote(){
        '<div class="gline"><span>On-site add-ons</span><b>' + money(onsiteTotal()) + '</b></div>' +
        '<div class="gline"><span>Site improvements</span><b>' + money(improvementsSubtotal()) + '</b></div>' +
        '<div class="gline"><span>Sales tax</span><b>' + money(salesTax()) + '</b></div>' +
+       (state.incentives.length ? '<div class="gline"><span>Incentives</span><b>' + money(-incentivesTotal()) + '</b></div>' : '') +
        '<div class="gline grand"><span>Total land home package</span><b>' + money(grandTotal()) + '</b></div></div>';
 
   h += '<div class="ptog"><div class="ptog-label">Customer print shows</div>' +
@@ -1217,12 +1226,22 @@ function buildPrint(internal){
     h += '<div class="psubtot"><span>Improvements Subtotal</span><b>' + money(improvementsSubtotal()) + '</b></div>';
   }
 
+  /* -- Incentives -- */
+  if (state.incentives.length){
+    h += '<div class="pbar">Incentives</div>';
+    h += '<table><thead><tr><th>Description</th><th style="text-align:right">Amount</th></tr></thead><tbody>';
+    state.incentives.forEach(i => { h += '<tr><td>' + esc(i.desc) + '</td><td class="n">' + money(-(parseFloat(i.amount) || 0)) + '</td></tr>'; });
+    h += '</tbody></table>';
+    h += '<div class="psubtot"><span>Incentives Total</span><b>' + money(-incentivesTotal()) + '</b></div>';
+  }
+
   /* -- Package summary -- */
   h += '<div class="pbar">Package Summary</div>';
   h += '<div class="prow"><span>Home (Base + Options)</span><b>' + money(homeSubtotal()) + '</b></div>' +
        '<div class="prow"><span>On-Site Home Add-Ons</span><b>' + money(onsiteTotal()) + '</b></div>' +
        '<div class="prow"><span>Site Improvements</span><b>' + money(improvementsSubtotal()) + '</b></div>' +
-       '<div class="prow"><span>Sales Tax</span><b>' + money(salesTax()) + '</b></div>';
+       '<div class="prow"><span>Sales Tax</span><b>' + money(salesTax()) + '</b></div>' +
+       (state.incentives.length ? '<div class="prow"><span>Incentives</span><b>' + money(-incentivesTotal()) + '</b></div>' : '');
   h += '<div class="ptotal"><span>Total</span><b>' + money(grandTotal()) + '</b></div>';
 
   h += '<div class="disc">This summary is provided for discussion and estimating purposes only and is not a binding contract, offer, or financing commitment. ' +
@@ -1240,6 +1259,7 @@ function serializeQuote(){
     markup: state.markup,
     quote: state.quote,
     onsite: state.onsite,
+    incentives: state.incentives,
     improve: state.improve,
     other: state.other,
     improveTbd: state.improveTbd,
@@ -1277,7 +1297,8 @@ function loadQuoteFile(file){
     if (data.markup) state.markup = Object.assign({on:true, pct:20}, data.markup);
     state.quote = data.quote;
     state.onsite = Array.isArray(data.onsite) ? data.onsite : [];
-    state.improve = Object.assign({foundation:'', electric:'', septic:'', water:'', decks:'', sidewalks:'', awnings:'', permits:''}, data.improve || {});
+    state.incentives = Array.isArray(data.incentives) ? data.incentives : [];
+    state.improve = Object.assign({foundation:'', excavation:'', electric:'', septic:'', water:'', decks:'', sidewalks:'', awnings:'', permits:''}, data.improve || {});
     state.other = Array.isArray(data.other) ? data.other : [];
     state.improveTbd = (data.improveTbd && typeof data.improveTbd === 'object') ? Object.assign({}, data.improveTbd) : {};
     normalizeIds();
@@ -1381,21 +1402,6 @@ document.getElementById('dockbar').addEventListener('click', () => {
   document.getElementById('dockbar').setAttribute('aria-expanded', open);
 });
 
-const SUN_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
-const MOON_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
-const dockdm = document.getElementById('dockdm');
-function syncQuoteTheme(){
-  dock.classList.toggle('light', state.quoteLight);
-  dockdm.setAttribute('aria-pressed', state.quoteLight);
-  dockdm.innerHTML = state.quoteLight ? SUN_ICON : MOON_ICON;
-  dockdm.title = state.quoteLight ? 'Switch quote to dark background' : 'Switch quote to light background';
-}
-dockdm.addEventListener('click', () => {
-  state.quoteLight = !state.quoteLight;
-  syncQuoteTheme();
-});
-syncQuoteTheme();
-
 document.getElementById('dockbody').addEventListener('click', e => {
   const q = e.target.closest('[data-q]');
   if (q){
@@ -1409,6 +1415,7 @@ document.getElementById('dockbody').addEventListener('click', e => {
   if (dx){
     const [list, id] = dx.dataset.delx.split(':');
     if (list === 'onsite') state.onsite = state.onsite.filter(x => x.id !== id);
+    else if (list === 'incentive') state.incentives = state.incentives.filter(x => x.id !== id);
     else state.other = state.other.filter(x => x.id !== id);
     renderQuote(); return;
   }
@@ -1446,6 +1453,13 @@ document.getElementById('dockbody').addEventListener('click', e => {
     toast('Custom option added');
     renderQuote(); return;
   }
+  if (e.target.closest('[data-add-incentive]')){
+    const dEl = document.getElementById('indesc'), aEl = document.getElementById('inamt');
+    const desc = dEl.value.trim(), amt = Math.abs(parseFloat(aEl.value));
+    if (!desc || isNaN(amt)){ toast('Enter a description and amount'); return; }
+    state.incentives.push({id:newId('in'), desc, amount:amt});
+    renderQuote(); return;
+  }
   if (e.target.closest('[data-add-onsite]')){
     const dEl = document.getElementById('osdesc'), aEl = document.getElementById('osamt');
     const desc = dEl.value.trim(), amt = parseFloat(aEl.value);
@@ -1461,8 +1475,8 @@ document.getElementById('dockbody').addEventListener('click', e => {
     renderQuote(); return;
   }
   if (e.target.id === 'qclear'){
-    state.quote = []; state.onsite = []; state.other = [];
-    state.improve = {foundation:'', electric:'', septic:'', water:'', decks:'', sidewalks:'', awnings:'', permits:''};
+    state.quote = []; state.onsite = []; state.other = []; state.incentives = [];
+    state.improve = {foundation:'', excavation:'', electric:'', septic:'', water:'', decks:'', sidewalks:'', awnings:'', permits:''};
     state.improveTbd = {};
     state.taxAmt = ''; state.taxPct = '';
     renderQuote(); toast('Quote cleared'); return;
@@ -1496,9 +1510,9 @@ document.getElementById('dockbody').addEventListener('change', e => {
   const xa = e.target.closest('[data-xamt]');
   if (xa){
     const [list, id] = xa.dataset.xamt.split(':');
-    const item = (list === 'onsite' ? state.onsite : state.other).find(x => x.id === id);
+    const item = (list === 'onsite' ? state.onsite : list === 'incentive' ? state.incentives : state.other).find(x => x.id === id);
     const v = parseFloat(xa.value);
-    if (item && !isNaN(v)) item.amount = v;
+    if (item && !isNaN(v)) item.amount = list === 'incentive' ? Math.abs(v) : v;
     renderQuote(); return;
   }
   const i = e.target.closest('[data-qi]');
